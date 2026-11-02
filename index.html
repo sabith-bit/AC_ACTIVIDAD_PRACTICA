@@ -1,0 +1,532 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Arquitectura Cloud de una plataforma de streaming de videojuegos</title>
+<style>
+:root{--bg:#fff;--panel:#f6f7f9;--ink:#202122;--muted:#54595d;--link:#0645ad;--line:#c8ccd1;--accent:#2a4b8d;--soft:#eaf0fb}
+*{box-sizing:border-box}
+html{scroll-behavior:smooth;scroll-padding-top:70px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.65 Georgia,"Times New Roman",serif}
+a{color:var(--link);text-decoration:none}a:hover{text-decoration:underline}
+a:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+header{position:sticky;top:0;z-index:5;background:var(--accent);color:#fff;padding:12px 20px;font:600 15px system-ui,sans-serif}
+.wrap{display:grid;grid-template-columns:230px minmax(0,1fr);gap:32px;max-width:1150px;margin:0 auto;padding:24px 20px 60px}
+nav{position:sticky;top:70px;align-self:start;background:var(--panel);border:1px solid var(--line);padding:14px 16px;font:14px/1.9 system-ui,sans-serif}
+nav b{display:block;margin-bottom:6px}
+nav ol{margin:0;padding-left:18px}
+main{max-width:820px}
+h1{font-size:2.1rem;font-weight:400;border-bottom:1px solid var(--line);margin:0 0 6px;padding-bottom:6px}
+.sub{color:var(--muted);font:italic 14px Georgia,serif;margin-bottom:18px}
+h2{font-size:1.5rem;font-weight:400;border-bottom:1px solid var(--line);margin:34px 0 10px;padding-bottom:4px}
+h3{font:700 1.05rem system-ui,sans-serif;margin:20px 0 4px}
+.infobox{float:right;width:300px;margin:0 0 16px 22px;border:1px solid var(--line);background:var(--panel);font:13.5px/1.5 system-ui,sans-serif}
+.infobox h4{margin:0;padding:8px;text-align:center;background:var(--soft);font-size:15px}
+.infobox table{border:0;margin:0}.infobox td{border:0;border-top:1px solid var(--line);padding:6px 8px;vertical-align:top}
+.infobox td:first-child{font-weight:600;width:42%}
+table{border-collapse:collapse;width:100%;margin:12px 0;font:14px/1.5 system-ui,sans-serif}
+th,td{border:1px solid var(--line);padding:7px 9px;text-align:left;vertical-align:top}
+th{background:var(--soft)}
+.note{background:var(--soft);border-left:4px solid var(--accent);padding:10px 14px;margin:14px 0;font:14.5px/1.55 system-ui,sans-serif}
+code{background:var(--panel);padding:1px 5px;font-size:.9em}
+figure{margin:18px 0;border:1px solid var(--line);padding:10px;background:#fff;overflow-x:auto}
+figure svg{min-width:760px;width:100%;height:auto}
+figcaption{font:13px system-ui,sans-serif;color:var(--muted);margin-top:6px}
+footer{border-top:1px solid var(--line);margin-top:40px;padding-top:12px;color:var(--muted);font:13px system-ui,sans-serif}
+@media(max-width:860px){.wrap{grid-template-columns:1fr}nav{position:static}.infobox{float:none;width:100%;margin:0 0 16px}}
+header{background:linear-gradient(90deg,#0f1b3d,#2a4b8d)}
+.hero{display:grid;grid-template-columns:1fr 1fr;background:radial-gradient(circle at 70% 40%,#2a4b8d,#0f1b3d 70%);color:#fff;border-radius:8px;overflow:hidden;margin:0 0 22px;font-family:system-ui,sans-serif}
+.hero .txt{padding:26px}.hero h3{font-size:1.25rem;margin:0 0 8px}.hero p{margin:0 0 14px;font-size:14.5px;line-height:1.55;color:#dbe6ff}
+.lg{display:flex;align-items:center;gap:9px;font-size:14px;margin:7px 0}.lg i{width:15px;height:15px;border-radius:4px;flex:none}
+#hero3d{min-height:330px;cursor:grab}#hero3d canvas{display:block}
+.chart{height:310px;position:relative}
+.ok{color:#1e7a3c;font-weight:700}
+@media(max-width:860px){.hero{grid-template-columns:1fr}}
+.hero{grid-template-columns:minmax(0,.8fr) minmax(0,1.2fr)}
+.capaInfo{grid-column:1/-1;margin:14px 14px 0;padding:12px 16px;border:1px solid rgba(255,255,255,.35);border-left-width:6px;border-radius:8px;background:rgba(255,255,255,.08);min-height:100px;transition:border-color .25s}
+.capaInfo p{margin:6px 0 8px;font-size:14px;line-height:1.55;color:#eaf0ff}
+.capaInfo .hint{margin:0;color:#c8d6f5}
+.ph{display:flex;align-items:center;gap:10px;font-size:1.05rem}
+.b{display:inline-flex;align-items:center;justify-content:center;width:26px;height:26px;border-radius:50%;color:#0f1b3d;font:700 14px system-ui,sans-serif;flex:none}
+.chips{display:flex;flex-wrap:wrap;gap:6px}.chips span{background:rgba(255,255,255,.14);border-radius:999px;padding:2px 10px;font-size:12.5px}
+.capaBtn{display:flex;align-items:center;gap:10px;width:100%;margin:8px 0;padding:10px 12px;background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.25);border-radius:8px;font:14px system-ui,sans-serif;text-align:left;cursor:pointer}
+.capaBtn:hover{background:rgba(255,255,255,.16)}
+.capaBtn[aria-pressed=true]{background:rgba(255,255,255,.24);border-color:#fff}
+.capaBtn:focus-visible{outline:2px solid #fff;outline-offset:2px}
+#hero3d{min-height:380px;touch-action:pan-y}
+@media(max-width:860px){.hero{grid-template-columns:1fr}}
+.gl{border-bottom:1px dotted currentColor;cursor:help}
+.gl:focus-visible{outline:2px solid #2a4b8d;outline-offset:2px}
+#tip{position:fixed;z-index:1000;display:none;max-width:290px;padding:8px 11px;border-radius:8px;background:#1b2a4e;color:#fff;font:13px/1.45 system-ui,sans-serif;box-shadow:0 4px 14px rgba(0,0,0,.35);pointer-events:none}
+#tip b{display:block;margin-bottom:2px;color:#9fd0ff}
+.capaBtn small{display:block;color:#cfe0ff;font-size:12.5px;margin-top:2px}
+</style>
+</head>
+<body>
+<header>ArquiCloud · Arquitectura de Computadores · Ingeniería de Sistemas</header>
+<div class="wrap">
+<nav aria-label="Contenido">
+<b>Contenido</b>
+<ol>
+<li><a href="#resumen">Resumen</a></li>
+<li><a href="#requisitos">Supuestos</a></li>
+<li><a href="#proveedor">Proveedor cloud</a></li>
+<li><a href="#diagrama">Flujo general</a></li>
+<li><a href="#computo">Cómputo</a></li>
+<li><a href="#almacenamiento">Almacenamiento</a></li>
+<li><a href="#red">Red y CDN</a></li>
+<li><a href="#mensajeria">Mensajería</a></li>
+<li><a href="#escalado">Escalado y resiliencia</a></li>
+<li><a href="#observabilidad">Observabilidad y fallos</a></li>
+<li><a href="#costos">Costos mensuales</a></li>
+<li><a href="#conclusion">Conclusión</a></li>
+</ol>
+</nav>
+
+<main>
+<h1>Arquitectura cloud de una plataforma de streaming de videojuegos</h1>
+<div class="sub">Diseño propuesto para una plataforma tipo Twitch · Actividad práctica, módulos 1 a 6</div>
+
+<section class="hero" aria-label="Capas de la arquitectura en 3D">
+<div id="capaInfo" class="capaInfo" aria-live="polite"></div>
+<div class="txt">
+<h3>La arquitectura en cuatro capas</h3>
+<p>Cada capa escala por separado. Elige una para ver qué hace.</p>
+<button class="capaBtn" data-i="0" aria-pressed="false"><span class="b" style="background:#38bdf8">1</span><span><b>Borde y CDN</b><small>Entrega el video cerca del espectador</small></span></button>
+<button class="capaBtn" data-i="1" aria-pressed="false"><span class="b" style="background:#f59e0b">2</span><span><b>Mensajería</b><small>Kafka y Redis para chat y eventos</small></span></button>
+<button class="capaBtn" data-i="2" aria-pressed="false"><span class="b" style="background:#a78bfa">3</span><span><b>Cómputo</b><small>Kubernetes, GPU y Lambda</small></span></button>
+<button class="capaBtn" data-i="3" aria-pressed="false"><span class="b" style="background:#34d399">4</span><span><b>Datos</b><small>S3, Aurora, DynamoDB y búsqueda</small></span></button>
+</div>
+<div id="hero3d" role="img" aria-label="Cuatro capas numeradas que giran; se pueden seleccionar"></div>
+</section>
+
+<aside class="infobox" aria-label="Ficha resumen">
+<h4>Ficha del diseño</h4>
+<table>
+<tr><td>Streamers</td><td>100.000 concurrentes</td></tr>
+<tr><td>Espectadores</td><td>10 millones simultáneos</td></tr>
+<tr><td>Latencia de video</td><td>Menos de 3 segundos</td></tr>
+<tr><td>Proveedor</td><td>AWS con entrega multi-CDN</td></tr>
+<tr><td>Cómputo</td><td>EKS (Graviton y GPU), Lambda</td></tr>
+<tr><td>Mensajería</td><td>Apache Kafka (MSK) y Redis</td></tr>
+<tr><td>Red</td><td>VPC, Global Accelerator, multi-CDN</td></tr>
+<tr><td>Costo estimado</td><td>9 a 20 millones de US$ al mes</td></tr>
+</table>
+</aside>
+
+<h2 id="resumen">Resumen</h2>
+<p>La plataforma recibe el video de los streamers, lo convierte a varias calidades y lo entrega casi en vivo a millones de espectadores. También ofrece chat en tiempo real, recomienda streams y guarda las partidas para verlas después (VODs). Es un sistema distribuido en el que cada parte escala por separado.</p>
+
+<h2 id="requisitos">Supuestos de dimensionamiento</h2>
+<table>
+<tr><th>Variable</th><th>Valor de diseño</th></tr>
+<tr><td>Pico de streamers y espectadores</td><td>100.000 streamers y 10.000.000 de espectadores simultáneos</td></tr>
+<tr><td>Promedio mensual de espectadores</td><td>Cerca de 3.000.000 concurrentes (30 % del pico)</td></tr>
+<tr><td>Ingesta por streamer</td><td>6 Mbps (1080p60); unos 600 Gbps en el pico</td></tr>
+<tr><td>Entrega por espectador</td><td>2,5 Mbps promedio (bitrate adaptativo); unos 25 Tbps en el pico y cerca de 2,5 EB al mes</td></tr>
+<tr><td>Chat</td><td>Escribe cerca del 10 % de los espectadores, con reparto masivo de mensajes (fan-out)</td></tr>
+<tr><td>VODs</td><td>Calidad fuente, 14 días en almacenamiento caliente</td></tr>
+</table>
+<div class="note">La ingesta es manejable, pero la <b>salida de video</b> es enorme: la CDN es lo que más pesa en el diseño y en el costo.</div>
+
+<h2 id="proveedor">Proveedor cloud y justificación</h2>
+<p>Se usa <b>AWS</b> para la ingesta y el plano de control, combinado con entrega multi-CDN.</p>
+<ul>
+<li><b>Madurez de servicios:</b> líder en servicios de medios, cómputo eficiente con procesadores Graviton y Kafka gestionado (MSK).</li>
+<li><b>Cobertura global:</b> 33 regiones y más de 100 zonas de disponibilidad, para ubicar la ingesta cerca de los streamers.</li>
+<li><b>Caso de referencia:</b> Twitch opera sobre AWS, una escala de streaming muy parecida a la del problema.</li>
+<li><b>Entrega multi-CDN:</b> como la salida de red es el mayor costo, se combina con Akamai, Fastly y Cloudflare y con cachés dentro de los ISPs (al estilo de Open Connect de Netflix). Baja el costo y evita depender de un solo proveedor.</li>
+</ul>
+
+<h2 id="diagrama">Flujo general</h2>
+<figure>
+<svg viewBox="0 0 900 430" role="img" aria-label="Diagrama de la arquitectura: streamer, ingesta, transcodificación, CDN y espectador, con chat, recomendaciones y VODs">
+<defs><marker id="a" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto"><path d="M0 0L10 5L0 10z" fill="#54595d"/></marker></defs>
+<g font-family="system-ui,sans-serif" font-size="13" text-anchor="middle">
+<g fill="#eaf0fb" stroke="#2a4b8d" stroke-width="1.5">
+<rect x="10" y="60" width="110" height="56" rx="6"/><rect x="170" y="60" width="130" height="56" rx="6"/><rect x="350" y="60" width="150" height="56" rx="6"/><rect x="550" y="60" width="140" height="56" rx="6"/><rect x="740" y="60" width="140" height="56" rx="6"/>
+</g>
+<g fill="#fff4dd" stroke="#a36a00" stroke-width="1.5">
+<rect x="350" y="180" width="150" height="56" rx="6"/><rect x="170" y="180" width="130" height="56" rx="6"/>
+</g>
+<g fill="#e6f4ea" stroke="#1e7a3c" stroke-width="1.5">
+<rect x="740" y="180" width="140" height="56" rx="6"/><rect x="550" y="180" width="140" height="56" rx="6"/>
+<rect x="170" y="320" width="130" height="56" rx="6"/><rect x="350" y="320" width="150" height="56" rx="6"/><rect x="550" y="320" width="140" height="56" rx="6"/><rect x="740" y="320" width="140" height="56" rx="6"/>
+</g>
+<g fill="#202122">
+<text x="65" y="85">Streamer</text><text x="65" y="102" font-size="11">OBS · RTMP/SRT</text>
+<text x="235" y="85">PoP de ingesta</text><text x="235" y="102" font-size="11">RTMP · SRT · WebRTC</text>
+<text x="425" y="85">Transcodificación</text><text x="425" y="102" font-size="11">GPU en EKS (Spot)</text>
+<text x="620" y="85">Empaquetado</text><text x="620" y="102" font-size="11">LL-HLS + Origin Shield</text>
+<text x="810" y="85">Multi-CDN</text><text x="810" y="102" font-size="11">CDNs + cachés en ISPs</text>
+<text x="425" y="205">Kafka (MSK)</text><text x="425" y="222" font-size="11">eventos en tiempo real</text>
+<text x="235" y="205">Chat</text><text x="235" y="222" font-size="11">Gateways + Redis</text>
+<text x="810" y="205">Espectador</text><text x="810" y="222" font-size="11">app / navegador</text>
+<text x="620" y="205">Grabación</text><text x="620" y="222" font-size="11">Lambda + S3</text>
+<text x="235" y="345">Usuarios y pagos</text><text x="235" y="362" font-size="11">Aurora (SQL)</text>
+<text x="425" y="345">Canales y sesiones</text><text x="425" y="362" font-size="11">Redis + DynamoDB</text>
+<text x="620" y="345">Recomendaciones</text><text x="620" y="362" font-size="11">Flink + SageMaker</text>
+<text x="810" y="345">VODs y búsqueda</text><text x="810" y="362" font-size="11">S3 + OpenSearch</text>
+</g>
+<g stroke="#54595d" stroke-width="1.5" fill="none" marker-end="url(#a)">
+<path d="M120 88H168"/><path d="M300 88H348"/><path d="M500 88H548"/><path d="M690 88H738"/>
+<path d="M810 116V178"/><path d="M425 116V178"/><path d="M425 236V318"/><path d="M350 208H302"/>
+<path d="M500 208H548"/><path d="M690 208H738"/><path d="M620 236V318"/><path d="M810 236V318"/>
+<path d="M235 236V318"/><path d="M620 116V178"/>
+</g>
+<text x="450" y="30" font-size="15" font-weight="700" fill="#2a4b8d">Flujo de video (arriba) y servicios de datos (abajo)</text>
+<text x="450" y="410" font-size="12" fill="#54595d">Azul: video · Naranja: mensajería · Verde: datos y servicios</text>
+</g>
+</svg>
+<figcaption>Figura 1. Flujo del video, el chat y las recomendaciones.</figcaption>
+</figure>
+
+<h2 id="computo">Servicios de cómputo</h2>
+<table>
+<tr><th>Función</th><th>Tecnología</th><th>Justificación</th></tr>
+<tr><td>Ingesta de video</td><td>EKS en puntos de presencia regionales (instancias c7gn, Graviton)</td><td>Terminan RTMP, SRT y WebRTC. Red de alto throughput y bajo costo.</td></tr>
+<tr><td>Transcodificación</td><td>Instancias con GPU o aceleradores (g6 con L4, VT1) en EKS, con Spot</td><td>Costo alto por stream; Spot lo reduce cerca de 60 %. Solo se transcodifican los canales con audiencia; el resto va en passthrough.</td></tr>
+<tr><td>Empaquetado y origen</td><td>Contenedores en EKS con Origin Shield</td><td>Segmentos LL-HLS de 2 s con partes de unos 0,5 s.</td></tr>
+<tr><td>Chat (WebSockets)</td><td>EKS, c7g.4xlarge (150 a 200 nodos)</td><td>50.000 a 100.000 conexiones por nodo; servicios con estado de conexión que escalan en horizontal.</td></tr>
+<tr><td>APIs principales</td><td>Microservicios en EKS con service mesh (Envoy)</td><td>Escalan por separado; el circuit breaker aísla los fallos.</td></tr>
+<tr><td>Serverless</td><td>AWS Lambda</td><td>Webhooks, avisos de «streamer en vivo», miniaturas, moderación asíncrona y procesado de VODs. Pago por uso.</td></tr>
+<tr><td>Recomendaciones (ML)</td><td>SageMaker con GPU y CPU</td><td>Entrenamiento e inferencia en endpoints que escalan solos.</td></tr>
+</table>
+<p>El video en vivo no va en serverless: es continuo y no encaja con el límite de 15 minutos de Lambda ni con su arranque en frío.</p>
+
+<h2 id="almacenamiento">Almacenamiento: una base de datos por tipo de dato</h2>
+<table>
+<tr><th>Tipo de dato</th><th>Almacén</th><th>Razón</th></tr>
+<tr><td>VODs, clips y miniaturas</td><td>Amazon S3 (Intelligent-Tiering y Glacier)</td><td>Objetos masivos, 11 nueves de durabilidad y ciclo de vida automático</td></tr>
+<tr><td>Cuentas, suscripciones y pagos</td><td>Aurora PostgreSQL</td><td>Consistencia transaccional estricta (ACID)</td></tr>
+<tr><td>Historial de chat</td><td>Cassandra (Keyspaces) o DynamoDB</td><td>Escrituras masivas distribuidas, particionadas por canal y tiempo</td></tr>
+<tr><td>Estado de canales y sesiones</td><td>ElastiCache Redis (cluster)</td><td>Latencia de microsegundos; contadores de espectadores y límites de uso</td></tr>
+<tr><td>Grafo de follows</td><td>Neptune o tablas desnormalizadas en DynamoDB</td><td>Consultas de relaciones entre usuarios y canales</td></tr>
+<tr><td>Búsqueda de VODs y canales</td><td>OpenSearch</td><td>Texto completo y filtros por juego, idioma y etiquetas</td></tr>
+<tr><td>Embeddings de recomendaciones</td><td>pgvector u OpenSearch vectorial</td><td>Candidatos por similitud en milisegundos</td></tr>
+<tr><td>Métricas de salud</td><td>Amazon Timestream o Prometheus</td><td>Series temporales</td></tr>
+<tr><td>Data lake de eventos</td><td>S3 con Athena o Redshift</td><td>Consultas analíticas y datos para entrenar modelos</td></tr>
+</table>
+
+<h2 id="red">Red y CDN</h2>
+<ul>
+<li><b>Estructura de red:</b> una VPC por región, subredes públicas (balanceadores) y privadas (cómputo), y VPC Endpoints para S3 y DynamoDB que reducen el costo de tránsito.</li>
+<li><b>Ingesta:</b> AWS Global Accelerator (anycast) lleva la señal del streamer al punto de ingesta más cercano.</li>
+<li><b>Entrega global:</b> multi-CDN con dirección dinámica del tráfico según costo, rendimiento y salud de cada CDN. Origin Shield protege el origen de cómputo.</li>
+<li><b>Latencia menor de 3 s:</b> LL-HLS con segmentos de 2 s y transferencia por partes, para unos 2 a 3 s de extremo a extremo. WebRTC (menos de 1 s) queda como opción interactiva premium.</li>
+<li><b>Seguridad:</b> WAF y Shield Advanced contra DDoS, URLs firmadas y tokens de acceso temporales.</li>
+</ul>
+
+<h2 id="mensajeria">Mensajería para eventos en tiempo real</h2>
+<ul>
+<li><b>Broker principal:</b> Apache Kafka (MSK), con los topics <code>chat-messages</code>, <code>stream-events</code>, <code>viewer-heartbeats</code>, <code>moderation</code> y <code>recs-feedback</code>. Se particiona por <code>channel_id</code> para conservar el orden dentro de cada canal.</li>
+<li><b>Chat:</b> el gateway publica en Redis Pub/Sub (reparto de baja latencia) y en Kafka (historial, moderación y analítica). Los canales masivos se dividen en grupos de espectadores (shards).</li>
+<li><b>Procesamiento en stream:</b> Flink o Kafka Streams cuentan espectadores en tiempo real, detectan tendencias y alimentan el feature store de las recomendaciones.</li>
+<li><b>Patrones:</b> CQRS (escritura del chat separada de una lectura optimizada) y Event Sourcing para auditar la moderación.</li>
+</ul>
+
+<h2 id="escalado">Escalado automático y resiliencia</h2>
+<ul>
+<li><b>Pods de API y chat:</b> HPA por conexiones activas y CPU; KEDA por el retraso (lag) de los topics de Kafka.</li>
+<li><b>Nodos de EKS:</b> Karpenter o Cluster Autoscaler, con On-Demand como base y Spot para los picos.</li>
+<li><b>Transcodificación:</b> escala según los streams activos, con un grupo de nodos ya calentados (warm pool) para evitar el arranque en frío.</li>
+<li><b>Escalado predictivo:</b> capacidad programada por patrón horario y para eventos masivos, como finales de e-sports.</li>
+<li><b>Persistencia:</b> DynamoDB On-Demand, Aurora con réplicas de lectura y Redis con resharding en línea.</li>
+</ul>
+<h3>Métricas que disparan el escalado</h3>
+<table>
+<tr><th>Métrica</th><th>Umbral de partida</th><th>Acción</th></tr>
+<tr><td>CPU de los pods de API y chat</td><td>Más del 60 % durante 2 minutos</td><td>El HPA agrega réplicas</td></tr>
+<tr><td>Conexiones WebSocket por pod</td><td>Más de 10.000</td><td>El HPA agrega réplicas</td></tr>
+<tr><td>Lag de consumidores en Kafka</td><td>Crece durante varios minutos</td><td>KEDA agrega consumidores, hasta igualar las particiones</td></tr>
+<tr><td>Uso de GPU en transcodificación</td><td>Más del 80 %</td><td>Se agregan nodos GPU desde el warm pool</td></tr>
+<tr><td>Latencia de entrega p95</td><td>Más de 2,5 s (el límite es 3 s)</td><td>Alerta y revisión de capacidad en origen y CDN</td></tr>
+</table>
+<p>Son valores de partida; se ajustan con pruebas de carga antes de salir a producción.</p>
+<figure>
+<div class="chart"><canvas id="chEscala" aria-label="Espectadores y capacidad durante un día"></canvas></div>
+<figcaption>Figura 2. Ejemplo ilustrativo de un día típico (millones de espectadores). Con autoescalado se paga la capacidad necesaria; con capacidad fija para el pico se paga siempre el máximo.</figcaption>
+</figure>
+
+<h2 id="observabilidad">Observabilidad y tolerancia a fallos</h2>
+<table>
+<tr><th>Pilar</th><th>Herramienta</th><th>Qué se mira</th></tr>
+<tr><td>Logs</td><td>CloudWatch Logs y OpenSearch</td><td>Errores de ingesta, moderación del chat, fallos de pagos</td></tr>
+<tr><td>Métricas</td><td>Prometheus y Grafana</td><td>CPU, conexiones, lag de Kafka, streams activos, espectadores</td></tr>
+<tr><td>Trazas distribuidas</td><td>OpenTelemetry con Jaeger o AWS X-Ray</td><td>Recorrido de una petición entre microservicios</td></tr>
+</table>
+<ul>
+<li><b>SLO:</b> 99,95 % de disponibilidad.</li>
+<li><b>Multi-AZ y multi-región activo-activo</b> en ingesta y entrega.</li>
+<li><b>Circuit breaker y reintentos con espera creciente</b> entre microservicios, con Envoy.</li>
+<li><b>Chaos engineering</b> periódico, e infraestructura como código con Terraform y despliegues con ArgoCD (GitOps).</li>
+</ul>
+
+<h2 id="costos">Estimación de costos mensuales</h2>
+<table>
+<tr><th>Componente</th><th>US$ al mes</th><th>Detalle y supuestos</th></tr>
+<tr><td>Salida por CDN</td><td>5,0 a 12,0 M</td><td>Cerca de 2,5 EB al mes a 0,002 a 0,005 US$/GB con tarifas negociadas</td></tr>
+<tr><td>Transcodificación</td><td>1,5 a 3,0 M</td><td>Instancias GPU o aceleradas, con mezcla de Spot</td></tr>
+<tr><td>Ingesta, empaquetado y origen</td><td>0,3 a 0,5 M</td><td>Instancias Graviton y Origin Shield</td></tr>
+<tr><td>Chat, APIs y EKS</td><td>0,3 a 0,6 M</td><td>Microservicios y nodos de chat</td></tr>
+<tr><td>Kafka (MSK)</td><td>0,1 a 0,2 M</td><td>Clusters gestionados</td></tr>
+<tr><td>Bases de datos</td><td>0,3 a 0,6 M</td><td>Aurora, DynamoDB o Cassandra, Redis y OpenSearch</td></tr>
+<tr><td>Almacenamiento de VODs</td><td>0,6 a 1,2 M</td><td>Entre 25 y 50 PB en S3</td></tr>
+<tr><td>ML y recomendaciones</td><td>0,2 a 0,4 M</td><td>Entrenamiento e inferencia en SageMaker</td></tr>
+<tr><td>Observabilidad, seguridad y soporte</td><td>0,5 a 1,0 M</td><td>Prometheus, Grafana, WAF, Shield y soporte enterprise</td></tr>
+<tr><th>Total aproximado</th><th>9,0 a 20,0 M</th><th>Punto medio de unos 13 a 14 M US$ al mes</th></tr>
+</table>
+<div class="note"><b>Costo unitario:</b> con unos 13 a 14 M US$ al mes y 3 M de espectadores promedio (730 horas al mes), sale cerca de 0,006 US$ por hora de visualización. Son cifras de orden de magnitud, no una cotización.</div>
+<h3>Cómo se reduce el costo (FinOps)</h3>
+<ul>
+<li><b>Negociar tarifas multi-CDN</b> con compromiso de volumen: el egreso es entre el 60 y el 70 % del costo.</li>
+<li><b>Transcodificar solo canales con audiencia suficiente;</b> el resto va en passthrough.</li>
+<li><b>Spot</b> para transcodificación y procesado de VODs; <b>reservadas o Savings Plans</b> para la carga base que corre todo el día; bajo demanda solo para los picos.</li>
+<li><b>Ciclo de vida de VODs:</b> los antiguos pasan a Glacier y se eliminan los que no se ven.</li>
+<li><b>Graviton:</b> entre 20 y 40 % mejor precio por rendimiento.</li>
+<li><b>Rightsizing:</b> revisar cada mes el uso real de CPU y memoria y reducir lo que sobra; etiquetas por servicio y alertas de presupuesto (AWS Budgets).</li>
+</ul>
+<figure>
+<div class="chart"><canvas id="chCostos" aria-label="Distribución del costo mensual"></canvas></div>
+<figcaption>Figura 3. Distribución del costo mensual con los valores medios de cada rango (millones de US$).</figcaption>
+</figure>
+
+<h2 id="conclusion">Conclusión</h2>
+<p>El diseño separa el problema en cuatro partes que escalan por separado: <b>video</b> (ingesta, transcodificación, multi-CDN), <b>tiempo real</b> (chat y eventos con Kafka y Redis), <b>datos</b> (una base de datos por tipo de dato) y <b>recomendaciones</b> (Flink, feature store y SageMaker). Con scale-out, servicios gestionados y la entrega cerca del espectador se cubren los 100.000 streamers, los 10 millones de espectadores y los menos de 3 segundos de latencia.</p>
+
+<footer><b>Integrantes:</b> escriban aquí los nombres del grupo.<br>Material base: «Procesamiento Paralelo, Tecnologías e Infraestructuras de la Nube», Ingeniería de Sistemas, 2026. Las cifras de costos son estimaciones propias para fines académicos.</footer>
+</main>
+</div>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+var D=[
+[["CDN","CDNs"],"CDN","Red de servidores repartidos por el mundo que guardan copias del video y lo entregan desde el punto más cercano al espectador."],
+[["Multi-CDN"],"Multi-CDN","Usar varias CDN a la vez (Akamai, Fastly, Cloudflare) para pagar menos y no depender de una sola."],
+[["Kafka"],"Apache Kafka","Sistema que recibe y reparte mensajes y eventos en tiempo real entre servicios, y los guarda en disco por un tiempo."],
+[["Kafka Streams"],"Kafka Streams","Biblioteca de Kafka para procesar los datos mientras van llegando."],
+[["MSK"],"MSK","Amazon MSK: Kafka administrado por AWS; AWS lo instala y lo mantiene."],
+[["Redis"],"Redis","Base de datos en memoria, muy rápida. Se usa para sesiones, contadores y repartir los mensajes del chat."],
+[["Pub/Sub"],"Pub/Sub","Publicar y suscribirse: un servicio publica un mensaje y todos los suscritos lo reciben al instante."],
+[["Lambda"],"AWS Lambda","Servicio que ejecuta pequeñas funciones solo cuando ocurre un evento; se paga por el tiempo de uso."],
+[["GPU","GPUs"],"GPU","Procesador con miles de núcleos pequeños. Aquí sirve para convertir el video a varias calidades."],
+[["Kubernetes"],"Kubernetes","Sistema que organiza y escala contenedores (aplicaciones empaquetadas) en muchos servidores."],
+[["EKS"],"EKS","Amazon EKS: Kubernetes administrado por AWS."],
+[["pods","pod"],"Pod","Unidad mínima de Kubernetes: uno o más contenedores que corren juntos."],
+[["nodos","nodo"],"Nodo","Servidor que forma parte de un clúster."],
+[["microservicios"],"Microservicios","Aplicación dividida en servicios pequeños e independientes, cada uno con una tarea."],
+[["S3"],"Amazon S3","Almacenamiento de objetos de AWS: guarda archivos grandes (videos, imágenes) de forma muy duradera."],
+[["Glacier"],"S3 Glacier","Almacenamiento de AWS muy barato para datos que casi no se consultan."],
+[["Intelligent-Tiering"],"Intelligent-Tiering","S3 mueve los datos solo entre niveles de precio según cuánto se usen."],
+[["Aurora"],"Amazon Aurora","Base de datos relacional de AWS compatible con PostgreSQL; garantiza transacciones seguras."],
+[["DynamoDB"],"DynamoDB","Base de datos NoSQL de AWS, muy rápida y que crece sola."],
+[["OpenSearch"],"OpenSearch","Motor de búsqueda de texto: encuentra videos y canales por título, juego o etiqueta."],
+[["Cassandra","Keyspaces"],"Cassandra","Base de datos distribuida pensada para escribir enormes cantidades de datos, como el historial de chat."],
+[["Neptune"],"Amazon Neptune","Base de datos de grafos: guarda relaciones, como quién sigue a quién."],
+[["pgvector"],"pgvector","Extensión de PostgreSQL para guardar vectores y buscar elementos parecidos."],
+[["Athena"],"Amazon Athena","Permite hacer consultas SQL directamente sobre archivos guardados en S3."],
+[["Redshift"],"Amazon Redshift","Almacén de datos de AWS para analizar grandes volúmenes de información."],
+[["Timestream"],"Amazon Timestream","Base de datos de AWS para series temporales, es decir, métricas que cambian con el tiempo."],
+[["ACID"],"ACID","Garantías de una transacción: se guarda todo o nada, y los datos quedan consistentes."],
+[["Prometheus"],"Prometheus","Herramienta que recoge métricas de los servicios."],
+[["Grafana"],"Grafana","Herramienta que muestra las métricas en paneles y graficos."],
+[["OpenTelemetry"],"OpenTelemetry","Estándar abierto para recoger métricas, logs y trazas de las aplicaciones."],
+[["Jaeger"],"Jaeger","Herramienta de trazas distribuidas: muestra el recorrido de una petición entre servicios."],
+[["X-Ray"],"AWS X-Ray","Servicio de AWS de trazas distribuidas."],
+[["SLO"],"SLO","Objetivo de nivel de servicio: una meta de calidad, como 99,95 % de disponibilidad."],
+[["p95"],"p95","Valor que el 95 % de las peticiones no supera."],
+[["HPA"],"HPA","Horizontal Pod Autoscaler: agrega o quita copias de una aplicación según su carga."],
+[["KEDA"],"KEDA","Escala aplicaciones en Kubernetes según eventos, como los mensajes pendientes en Kafka."],
+[["Karpenter","Cluster Autoscaler"],"Karpenter","Agrega o quita servidores (nodos) en Kubernetes según lo que haga falta."],
+[["lag"],"Lag","Cantidad de mensajes pendientes por procesar en Kafka."],
+[["warm pool"],"Warm pool","Servidores ya encendidos y listos para entrar en servicio sin esperar el arranque."],
+[["scale-out"],"Scale-out","Escalar agregando más servidores, en lugar de usar uno más grande."],
+[["Graviton"],"Graviton","Procesadores ARM de AWS; ofrecen mejor precio por rendimiento."],
+[["Spot"],"Instancias Spot","Servidores de AWS con gran descuento que pueden interrumpirse; sirven para trabajos que toleran cortes."],
+[["On-Demand"],"On-Demand","Bajo demanda: se paga por uso a precio normal y sin compromiso."],
+[["Savings Plans"],"Savings Plans","Compromiso de uso por uno o tres años a cambio de un descuento."],
+[["rightsizing"],"Rightsizing","Ajustar el tamaño de los servidores al uso real para no pagar de más."],
+[["FinOps"],"FinOps","Prácticas para controlar y optimizar el gasto en la nube."],
+[["LL-HLS"],"LL-HLS","Low-Latency HLS: envía el video en trozos muy cortos para que llegue con pocos segundos de retraso."],
+[["WebRTC"],"WebRTC","Tecnología de video en tiempo real desde el navegador, con menos de 1 segundo de retraso."],
+[["RTMP"],"RTMP","Protocolo clásico con el que programas como OBS envían el video."],
+[["SRT"],"SRT","Protocolo para enviar video de forma segura y estable aunque la red falle un poco."],
+[["OBS"],"OBS","Programa gratuito que usan los streamers para transmitir."],
+[["ABR"],"ABR","Bitrate adaptativo: el video cambia de calidad según la velocidad de internet de cada espectador."],
+[["bitrate"],"Bitrate","Cantidad de datos por segundo que usa un video."],
+[["Origin Shield"],"Origin Shield","Capa que protege al servidor de origen: las CDN le piden el video a ella y no a él."],
+[["Global Accelerator"],"Global Accelerator","Servicio de AWS que lleva el tráfico por su red hasta el punto de entrada más cercano."],
+[["anycast"],"Anycast","Una misma dirección IP en muchos lugares; cada usuario llega al más cercano."],
+[["WAF"],"WAF","Firewall de aplicaciones web: bloquea peticiones maliciosas."],
+[["Shield","Shield Advanced"],"AWS Shield","Protección contra ataques DDoS."],
+[["DDoS"],"DDoS","Ataque que satura un servicio con tráfico falso."],
+[["ISP","ISPs"],"ISP","Proveedor de internet, como Claro o Movistar."],
+[["PoP","PoPs"],"PoP","Punto de presencia: lugar con servidores cerca de los usuarios."],
+[["VPC"],"VPC","Red virtual privada y aislada dentro de AWS."],
+[["VPC Endpoints"],"VPC Endpoints","Conexión privada a servicios como S3 sin salir a internet."],
+[["Multi-AZ"],"Multi-AZ","Funcionar en varias zonas de disponibilidad (centros de datos separados) para resistir fallos."],
+[["VOD","VODs"],"VOD","Video bajo demanda: la partida grabada para verla después."],
+[["streamer","streamers"],"Streamer","Persona que transmite en vivo."],
+[["fan-out"],"Fan-out","Repartir un mismo mensaje a muchísimos receptores a la vez."],
+[["shards"],"Shards","Fragmentos en que se divide un canal o una base de datos para repartir la carga."],
+[["CQRS"],"CQRS","Separar las operaciones de escritura de las de lectura para optimizar cada una."],
+[["Event Sourcing"],"Event Sourcing","Guardar la secuencia de eventos y no solo el estado final; sirve para auditar."],
+[["Flink"],"Apache Flink","Motor para procesar flujos de datos en tiempo real."],
+[["feature store"],"Feature store","Almacén de datos ya preparados que usan los modelos de recomendación."],
+[["SageMaker"],"Amazon SageMaker","Plataforma de AWS para entrenar y desplegar modelos de aprendizaje automático."],
+[["ML"],"ML","Machine learning: aprendizaje automático."],
+[["Envoy"],"Envoy","Proxy que gestiona la comunicación entre microservicios."],
+[["service mesh"],"Service mesh","Capa que controla la comunicación entre microservicios sin cambiar su código."],
+[["circuit breaker"],"Circuit breaker","Corta las llamadas a un servicio que falla para que no arrastre a los demas."],
+[["Chaos engineering"],"Chaos engineering","Provocar fallos a propósito para comprobar que el sistema resiste."],
+[["ArgoCD"],"ArgoCD","Herramienta que mantiene Kubernetes igual a lo que dice un repositorio Git."],
+[["GitOps"],"GitOps","Gestionar la infraestructura desde Git: lo que está en el repositorio es lo que se despliega."],
+[["Terraform"],"Terraform","Herramienta para definir la infraestructura con archivos de código."],
+[["WebSocket","WebSockets"],"WebSocket","Conexión abierta entre navegador y servidor para mensajes instantáneos, como el chat."],
+[["passthrough"],"Passthrough","Reenviar el video tal como llega, sin convertirlo."],
+[["webhooks","Webhooks"],"Webhook","Aviso automático que un servicio envía a otro cuando ocurre algo."],
+[["latencia"],"Latencia","Tiempo que pasa desde que se envía la señal hasta que se ve."],
+[["ingesta"],"Ingesta","Entrada del video al sistema desde el streamer."],
+[["transcodificación"],"Transcodificación","Convertir el video a varias calidades (1080p, 720p, 480p, 360p)."],
+[["egreso"],"Egreso","Tráfico que sale de la nube hacia los espectadores; AWS cobra por el."],
+[["Tbps"],"Tbps","Terabits por segundo."],
+[["Gbps"],"Gbps","Gigabits por segundo."],
+[["Mbps"],"Mbps","Megabits por segundo."],
+[["EB"],"EB","Exabyte: mil petabytes."],
+[["PB"],"PB","Petabyte: mil terabytes."]
+];
+var map={},keys=[];
+D.forEach(function(e){e[0].forEach(function(t){map[t.toLowerCase()]=e;keys.push(t)})});
+keys.sort(function(a,b){return b.length-a.length});
+var esc=keys.map(function(k){return k.replace(/[.*+?^${}()|[\]\\]/g,'\\$&')});
+var re=new RegExp('(^|[^\\w\\-áéíóúñÁÉÍÓÚÑ])('+esc.join('|')+')(?![\\w\\-áéíóúñÁÉÍÓÚÑ])','gi');
+function glossarize(root){
+var seen=new WeakMap(),nodes=[];
+var w=document.createTreeWalker(root,NodeFilter.SHOW_TEXT,{acceptNode:function(n){var p=n.parentElement;if(!p||!n.nodeValue.trim())return 2;if(p.closest('script,style,svg,canvas,code,nav,header,.gl,#hero3d,.chart'))return 2;return 1}});
+while(w.nextNode())nodes.push(w.currentNode);
+nodes.forEach(function(n){
+var blk=n.parentElement.closest('p,li,td,th,button,figcaption,.note,h3,.chips span')||n.parentElement;
+var sn=seen.get(blk);if(!sn){sn={};seen.set(blk,sn)}
+var t=n.nodeValue,out=document.createDocumentFragment(),last=0,m,any=false;
+re.lastIndex=0;
+while((m=re.exec(t))){var e=map[m[2].toLowerCase()];if(!e||sn[e[1]])continue;
+sn[e[1]]=1;any=true;
+var st=m.index+m[1].length;
+out.appendChild(document.createTextNode(t.slice(last,st)));
+var sp=document.createElement('span');sp.className='gl';sp.tabIndex=0;sp.setAttribute('data-t',e[1]);sp.setAttribute('data-d',e[2]);sp.textContent=m[2];
+out.appendChild(sp);last=st+m[2].length}
+if(any){out.appendChild(document.createTextNode(t.slice(last)));n.parentNode.replaceChild(out,n)}
+})}
+window.glossarize=glossarize;
+var tip=document.createElement('div');tip.id='tip';tip.setAttribute('role','tooltip');document.body.appendChild(tip);
+function show(el){tip.innerHTML='<b></b><span></span>';tip.firstChild.textContent=el.getAttribute('data-t');tip.lastChild.textContent=el.getAttribute('data-d');tip.style.display='block';
+var r=el.getBoundingClientRect(),tw=tip.offsetWidth,th=tip.offsetHeight;
+var x=Math.min(Math.max(8,r.left+r.width/2-tw/2),window.innerWidth-tw-8);
+var y=r.top-th-10;if(y<8)y=r.bottom+10;
+tip.style.left=x+'px';tip.style.top=y+'px'}
+function hide(){tip.style.display='none'}
+function gl(e){return e.target.closest?e.target.closest('.gl'):null}
+document.addEventListener('mouseover',function(e){var g=gl(e);if(g)show(g)});
+document.addEventListener('mouseout',function(e){if(gl(e))hide()});
+document.addEventListener('focusin',function(e){var g=gl(e);if(g)show(g)});
+document.addEventListener('focusout',function(e){if(gl(e))hide()});
+document.addEventListener('click',function(e){var g=gl(e);if(g)show(g);else hide()});
+window.addEventListener('scroll',hide,true);
+document.addEventListener('keydown',function(e){if(e.key==='Escape')hide()});
+glossarize(document.querySelector('main'));
+})();
+</script>
+<script>
+(function(){
+if(window.Chart){
+Chart.defaults.font.family='system-ui,sans-serif';
+var hrs=[];for(var i=0;i<24;i++)hrs.push(i+':00');
+var v=[0.8,0.6,0.5,0.4,0.4,0.5,0.8,1.2,1.6,2.0,2.3,2.6,3.0,3.3,3.7,4.3,5.0,5.7,6.3,6.7,6.0,4.3,2.3,1.3];
+new Chart(document.getElementById('chEscala'),{type:'line',data:{labels:hrs,datasets:[
+{label:'Espectadores (millones)',data:v,borderColor:'#2a4b8d',backgroundColor:'rgba(42,75,141,.25)',fill:true,tension:.35,pointRadius:0},
+{label:'Capacidad con autoescalado',data:v.map(function(x){return Math.ceil(x*1.25*2)/2}),borderColor:'#1e7a3c',stepped:true,pointRadius:0,borderWidth:2},
+{label:'Capacidad fija para el pico (10 M)',data:v.map(function(){return 10}),borderColor:'#c0392b',borderDash:[6,4],pointRadius:0,borderWidth:2}
+]},options:{responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},plugins:{title:{display:true,text:'Un día típico: demanda y capacidad'}},scales:{y:{beginAtZero:true,title:{display:true,text:'Millones'}},x:{ticks:{maxTicksLimit:8}}}}});
+new Chart(document.getElementById('chCostos'),{type:'doughnut',data:{labels:['Salida por CDN','Transcodificación','Ingesta y origen','Chat, APIs y EKS','Kafka (MSK)','Bases de datos','VODs en S3','ML y recomendaciones','Observabilidad y seguridad'],datasets:[{data:[8.5,2.25,0.4,0.45,0.15,0.45,0.9,0.3,0.75],backgroundColor:['#2a4b8d','#a78bfa','#38bdf8','#f59e0b','#fb7185','#34d399','#14b8a6','#818cf8','#94a3b8'],borderColor:'#fff',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{title:{display:true,text:'Costo mensual aproximado (millones de US$)'},legend:{position:'right'},tooltip:{callbacks:{label:function(c){return c.label+': '+c.parsed+' M US$'}}}}}});
+}
+var el=document.getElementById('hero3d');
+if(!el||!window.THREE)return;
+var info=[{"n": 1, "t": "Borde y CDN", "c": "#38bdf8", "d": "Lleva el video del streamer a los espectadores. Global Accelerator acerca la señal al punto de ingesta más cercano; el video se empaqueta en segmentos LL-HLS de 2 s y sale por varias CDN (Akamai, Fastly, Cloudflare) y cachés en ISPs, protegido por Origin Shield. Así la latencia queda entre 2 y 3 s con unos 25 Tbps de salida en el pico.", "tags": ["Global Accelerator", "LL-HLS", "Origin Shield", "Multi-CDN", "WAF y Shield"]}, {"n": 2, "t": "Mensajería", "c": "#f59e0b", "d": "Mueve los eventos en tiempo real. Kafka (MSK) guarda los mensajes del chat, los eventos de stream y los latidos de los espectadores, particionados por canal. Redis Pub/Sub reparte el chat con baja latencia, y Flink cuenta espectadores y alimenta las recomendaciones.", "tags": ["Kafka (MSK)", "Redis Pub/Sub", "Flink", "CQRS", "Event Sourcing"]}, {"n": 3, "t": "Cómputo", "c": "#a78bfa", "d": "Procesa el video, el chat y las APIs. Los nodos Graviton reciben la ingesta, las GPU (con Spot) transcodifican a 1080p, 720p, 480p y 360p, entre 150 y 200 nodos atienden los WebSockets del chat, Lambda hace las tareas por evento y SageMaker calcula las recomendaciones. HPA, KEDA y Karpenter lo escalan solos.", "tags": ["EKS", "Graviton c7gn", "GPU g6 / VT1", "Lambda", "SageMaker"]}, {"n": 4, "t": "Datos", "c": "#34d399", "d": "Guarda cada tipo de dato en el almacén que le conviene: S3 para VODs y clips, Aurora para cuentas y pagos, Cassandra o DynamoDB para el historial de chat, Redis para sesiones y contadores, OpenSearch para búsqueda y vectores para recomendar, y un data lake para analítica.", "tags": ["S3", "Aurora", "DynamoDB / Cassandra", "ElastiCache Redis", "OpenSearch", "Athena"]}];
+var panel=document.getElementById('capaInfo');
+var btns=document.querySelectorAll('.capaBtn');
+var r=new THREE.WebGLRenderer({antialias:true,alpha:true});
+r.setPixelRatio(Math.min(window.devicePixelRatio,2));
+function W(){return el.clientWidth}function H(){return el.clientHeight}
+r.setSize(W(),H());el.appendChild(r.domElement);
+var s=new THREE.Scene();
+var cam=new THREE.PerspectiveCamera(40,W()/H(),0.1,100);
+cam.position.set(9,7.5,11.5);cam.lookAt(0,2.9,0);
+s.add(new THREE.AmbientLight(0xffffff,0.8));
+var dl=new THREE.DirectionalLight(0xffffff,0.85);dl.position.set(5,10,6);s.add(dl);
+var g=new THREE.Group();g.rotation.y=0.6;s.add(g);
+var base=[4.8,3.2,1.6,0],L=[],msgs=[],spin=[];
+function M(geo,col,o,idx,par,extra){var m=new THREE.Mesh(geo,new THREE.MeshPhongMaterial(Object.assign({color:col,transparent:true,opacity:o,shininess:70},extra||{})));m.userData.o=o;m.userData.idx=idx;par.add(m);return m}
+function E(m,par){var e=new THREE.LineSegments(new THREE.EdgesGeometry(m.geometry),new THREE.LineBasicMaterial({color:0xffffff,transparent:true,opacity:1}));e.position.copy(m.position);e.rotation.copy(m.rotation);e.userData.o=1;par.add(e)}
+function num(n,col){var cv=document.createElement('canvas');cv.width=cv.height=128;var x=cv.getContext('2d');x.beginPath();x.arc(64,64,56,0,6.283);x.fillStyle=col;x.fill();x.lineWidth=8;x.strokeStyle='#fff';x.stroke();x.fillStyle='#0f1b3d';x.font='bold 72px system-ui,sans-serif';x.textAlign='center';x.textBaseline='middle';x.fillText(n,64,68);var sp=new THREE.Sprite(new THREE.SpriteMaterial({map:new THREE.CanvasTexture(cv),transparent:true,depthTest:false}));sp.scale.set(0.95,0.95,1);sp.userData.o=1;sp.renderOrder=10;return sp}
+var cols=[0x38bdf8,0xf59e0b,0xa78bfa,0x34d399];
+for(var i=0;i<4;i++){var lg=new THREE.Group();lg.position.y=base[i];g.add(lg);L.push(lg);
+var sl=M(new THREE.BoxGeometry(6.2,0.2,6.2),cols[i],0.8,i,lg);E(sl,lg);
+var nb=num(i+1,info[i].c);nb.position.set(-3.4,0.55,3.4);lg.add(nb);}
+var a,b,k,h;
+/* 1 Borde y CDN: torres con señal y globo */
+[[-2.2,-2.2],[2.2,-2.2],[-2.2,2.2],[2.2,2.2],[0,-2.4],[0,2.4]].forEach(function(p){
+var t=M(new THREE.CylinderGeometry(0.13,0.2,0.9,12),0x0ea5e9,1,0,L[0]);t.position.set(p[0],0.55,p[1]);
+var o=M(new THREE.SphereGeometry(0.2,16,16),0xe0f2fe,1,0,L[0]);o.position.set(p[0],1.1,p[1]);
+var rg=M(new THREE.TorusGeometry(0.38,0.025,8,32),0xe0f2fe,0.9,0,L[0]);rg.position.set(p[0],1.1,p[1]);rg.rotation.x=Math.PI/2;});
+var gl=M(new THREE.SphereGeometry(0.95,24,16),0x7dd3fc,0.35,0,L[0],{wireframe:true});gl.position.set(0,1.5,0);
+var co=M(new THREE.SphereGeometry(0.45,20,20),0x0ea5e9,1,0,L[0]);co.position.set(0,1.5,0);
+var eq=M(new THREE.TorusGeometry(1.15,0.03,8,48),0xffffff,0.9,0,L[0]);eq.position.set(0,1.5,0);eq.rotation.x=Math.PI/2.6;
+spin.push(gl,eq);
+/* 2 Mensajería: tubos (topics) con mensajes que viajan */
+[-1.8,-0.6,0.6,1.8].forEach(function(z){
+var p=M(new THREE.CylinderGeometry(0.17,0.17,4.4,16),0xfbbf24,0.55,1,L[1]);p.rotation.z=Math.PI/2;p.position.set(0,0.4,z);
+for(k=0;k<3;k++){var m=M(new THREE.BoxGeometry(0.26,0.26,0.26),0xffffff,1,1,L[1]);m.userData.z=z;m.userData.off=k/3+z*0.07;msgs.push(m);}});
+[-2.65,2.65].forEach(function(x){var w=M(new THREE.BoxGeometry(0.55,0.9,4.6),0xd97706,1,1,L[1]);w.position.set(x,0.55,0);E(w,L[1]);});
+/* 3 Cómputo: racks de servidores con luces */
+for(a=-1;a<=1;a++)for(b=-1;b<=1;b++){h=0.75+((((a*3+b*5+7)%3)+3)%3)*0.15;
+var rk=M(new THREE.BoxGeometry(0.85,h,0.85),0x8b5cf6,1,2,L[2]);rk.position.set(a*1.8,0.1+h/2,b*1.8);E(rk,L[2]);
+for(k=0;k<3;k++){var st=M(new THREE.BoxGeometry(0.6,0.05,0.02),0xf3e8ff,1,2,L[2]);st.position.set(a*1.8,0.28+k*0.2,b*1.8+0.44);}}
+/* 4 Datos: bases de datos (discos), cubo S3 y cachés */
+[-1.8,0,1.8].forEach(function(x){for(k=0;k<3;k++){var d=M(new THREE.CylinderGeometry(0.52,0.52,0.22,24),k==1?0x10b981:0x34d399,1,3,L[3]);d.position.set(x,0.22+k*0.3,1.5);}});
+var bk=M(new THREE.BoxGeometry(1.1,0.85,1.1),0x059669,0.9,3,L[3]);bk.position.set(-1.8,0.53,-1.4);E(bk,L[3]);
+[0,1.8].forEach(function(x){var c=M(new THREE.CylinderGeometry(0.45,0.45,0.9,24),0x6ee7b7,1,3,L[3]);c.position.set(x,0.55,-1.4);});
+var pick=[];g.traverse(function(o){if(o.isMesh&&o.userData.idx!==undefined)pick.push(o)});
+/* selección */
+var sel=-1,cur=[1,1,1,1];
+var still=window.matchMedia&&window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+function opac(lg,f){lg.traverse(function(m){if(m.material&&m.userData.o!==undefined){m.material.transparent=true;m.material.opacity=m.userData.o*f}})}
+function step(inst){L.forEach(function(lg,i){var ty=base[i]+(sel===i?0.5:0);lg.position.y=inst?ty:lg.position.y+(ty-lg.position.y)*0.1;var tf=sel<0||sel===i?1:0.2;var nf=inst?tf:cur[i]+(tf-cur[i])*0.12;if(inst||Math.abs(nf-cur[i])>0.002){cur[i]=nf;opac(lg,nf)}})}
+function select(i){sel=(sel===i)?-1:i;
+btns.forEach(function(bt,q){bt.setAttribute('aria-pressed',q===sel?'true':'false')});
+if(sel<0){panel.style.borderColor='rgba(255,255,255,.35)';panel.innerHTML='<p class="hint">Elige una capa para ver qué hace en el problema.</p>'}
+else{var d=info[sel];panel.style.borderColor=d.c;panel.innerHTML='<div class="ph"><span class="b" style="background:'+d.c+'">'+d.n+'</span><b>'+d.t+'</b></div><p>'+d.d+'</p><div class="chips">'+d.tags.map(function(t){return '<span>'+t+'</span>'}).join('')+'</div>'}
+if(window.glossarize)window.glossarize(panel);
+if(still){step(true);r.render(s,cam)}}
+btns.forEach(function(bt){bt.addEventListener('click',function(){select(+bt.dataset.i)})});
+/* arrastrar para girar y tocar una capa para elegirla */
+var drag=false,px=0,sx=0,sy=0;
+el.style.cursor='grab';
+el.addEventListener('pointerdown',function(e){drag=true;px=sx=e.clientX;sy=e.clientY;el.style.cursor='grabbing'});
+window.addEventListener('pointermove',function(e){if(drag){g.rotation.y+=(e.clientX-px)*0.01;px=e.clientX;if(still)r.render(s,cam)}});
+window.addEventListener('pointerup',function(e){if(!drag)return;drag=false;el.style.cursor='grab';
+if(Math.abs(e.clientX-sx)+Math.abs(e.clientY-sy)<6){var bb=el.getBoundingClientRect();var v=new THREE.Vector2((e.clientX-bb.left)/bb.width*2-1,-(e.clientY-bb.top)/bb.height*2+1);var rc=new THREE.Raycaster();rc.setFromCamera(v,cam);var hit=rc.intersectObjects(pick,false);if(hit.length)select(hit[0].object.userData.idx)}});
+function loop(t){
+if(!drag&&!still)g.rotation.y+=sel<0?0.004:0.0015;
+spin.forEach(function(m,q){m.rotation.y+=0.01;if(q)m.rotation.z+=0.006});
+msgs.forEach(function(m){var u=(((t/2600+m.userData.off)%1)+1)%1;m.position.set(-2.2+u*4.4,0.4,m.userData.z)});
+step(false);r.render(s,cam);
+if(!still)requestAnimationFrame(loop)}
+select(-1);
+if(still){step(true);loop(0)}else requestAnimationFrame(loop);
+window.addEventListener('resize',function(){r.setSize(W(),H());cam.aspect=W()/H();cam.updateProjectionMatrix();r.render(s,cam)});
+})();
+</script>
+</body>
+</html>
